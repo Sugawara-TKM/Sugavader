@@ -36,12 +36,83 @@ const keys = new Set();
 let bgmStarted = false;
 
 window.addEventListener("keydown", e => {
+  // タイトル画面：名前入力
+  if (gameState === "title") {
+    // BGMは「ゲーム開始後」に鳴らしたいなら、ここでは鳴らさない
+    // ただしブラウザ対策で「最初のキー入力で許可だけ取る」なら playしてOK
+
+    if (isEditingName) {
+      if (e.code === "Enter") {
+        // 名前確定（空なら NoName）
+        playerName = (nameBuffer.trim() || "NoName").slice(0, NAME_MAX);
+        localStorage.setItem("playerName", playerName);
+        isEditingName = false;
+
+        // ゲーム開始
+        resetGame();
+        gameState = "playing";
+
+        // BGM開始（ユーザー操作直後なのでOK）
+        if (!bgmStarted) {
+          bgm.play().catch(() => {});
+          bgmStarted = true;
+        }
+        return;
+      }
+      if (e.code === "Backspace") {
+        e.preventDefault();
+        nameBuffer = nameBuffer.slice(0, -1);
+        return;
+      }
+      if (e.code === "Escape") {
+        // 入力キャンセル（保存済みの名前に戻す）
+        nameBuffer = playerName;
+        isEditingName = false;
+        return;
+      }
+
+      // 文字入力（日本語含め基本OK）
+      if (e.key && e.key.length === 1 && nameBuffer.length < NAME_MAX) {
+        nameBuffer += e.key;
+      }
+      return;
+    } else {
+      // 編集中じゃないタイトル画面
+      if (e.code === "Enter") {
+        resetGame();
+        gameState = "playing";
+        if (!bgmStarted) {
+          bgm.play().catch(() => {});
+          bgmStarted = true;
+        }
+        return;
+      }
+      if (e.code === "KeyN") {
+        // Nで名前再編集
+        isEditingName = true;
+        nameBuffer = playerName === "NoName" ? "" : playerName;
+        return;
+      }
+      return;
+    }
+  }
+
+  // 結果画面：Enterでタイトルへ
+  if (gameState === "result") {
+    if (e.code === "Enter") {
+      gameState = "title";
+      isEditingName = true;
+      nameBuffer = playerName === "NoName" ? "" : playerName;
+      return;
+    }
+  }
+
+  // --- ここから先はプレイ中の操作
   if (["ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
   keys.add(e.code);
 
-  // 最初のキー入力でBGM開始（ブラウザの自動再生制限対策）
   if (!bgmStarted) {
-    bgm.play().catch(() => {}); // Safari対策
+    bgm.play().catch(() => {});
     bgmStarted = true;
   }
 }, { passive: false });
@@ -52,12 +123,15 @@ window.addEventListener("keyup", e => keys.delete(e.code));
   const faceImg = new Image();
   faceImg.src = "tomo.PNG"; // ファイル名を合わせる
 
+// --- Game state machine
+let gameState = "title"; // "title" | "playing" | "result"
+
 // --- Player name
-let playerName = localStorage.getItem("playerName") || "";
-if (!playerName) {
-  playerName = (prompt("プレイヤー名（20文字以内）") || "NoName").slice(0, 20);
-  localStorage.setItem("playerName", playerName);
-}
+let playerName = localStorage.getItem("playerName") || "NoName";
+let isEditingName = true;
+let nameBuffer = playerName === "NoName" ? "" : playerName; // 最初に編集しやすく
+const NAME_MAX = 20;
+
 
 // --- Supabase (REST)
 const SUPABASE_URL = "https://axngzzcozjuwmvvuvmor.supabase.co"; // ← あなたの Project URL
@@ -97,6 +171,55 @@ async function fetchTopScores(limit = 10) {
     console.log("fetchTopScores failed", e);
     return [];
   }
+}
+
+function resetGame() {
+  // スコアと結果
+  score = 0;
+  gameOver = false;
+  win = false;
+
+  // ランキング周り（結果画面で使うならここで初期化）
+  leaderboard = [];
+  submitted = false;
+  leaderboardLoading = false;
+
+  // 弾を空に
+  bullets.length = 0;
+  enemyBullets.length = 0;
+
+  // プレイヤー位置（上にいる前提）
+  player.x = W / 2 - player.w / 2;
+  player.y = 30;
+
+  // 敵の作り直し
+  invaders.length = 0;
+  const cols = 11, rows = 5;
+  const iw = 34, ih = 20, gapX = 16, gapY = 14;
+  const startX = 120, startY = H - 260;
+  for (let r=0; r<rows; r++) {
+    for (let c=0; c<cols; c++) {
+      invaders.push({
+        x: startX + c*(iw+gapX),
+        y: startY + r*(ih+gapY),
+        w: iw, h: ih,
+        alive: true
+      });
+    }
+  }
+
+  // 敵移動パラメータ（あなたの既存変数名に合わせて調整）
+  invDir = 1;
+  invSpeed = 55;
+  invDrop = -22;         // 下に敵がいるなら「上へ迫る」= マイナス
+  invTimer = 0;
+  invStepInterval = 0.22;
+
+  // 敵弾タイマー
+  enemyShootTimer = 0;
+
+  // BGM（プレイ開始で鳴らす）
+  // bgmStarted はキー入力側で管理するので、ここでは触らなくてOK
 }
 
   // --- Game state
@@ -152,6 +275,13 @@ async function fetchTopScores(limit = 10) {
   }
 
   function update(dt) {
+  if (gameState === "title") return;
+
+  if (gameState === "result") return;
+
+  // ここから下は「playing」の処理だけ
+  // （あなたの既存の update 中身）
+
     if (gameOver || win) {
   if (!bgm.paused) bgm.pause();
 
@@ -278,12 +408,40 @@ for (let i = enemyBullets.length - 1; i >= 0; i--) {
   if (aabb(b, player)) {
     enemyBullets.splice(i, 1);
     gameOver = true; // まずは1発アウトでOK
+    gameState = "result";
     break;
   }
 }
   }
 
   function render() {
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = "#0b0f14";
+  ctx.fillRect(0,0,W,H);
+
+  // --- タイトル画面
+  if (gameState === "title") {
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+    ctx.font = "42px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    ctx.fillText("SUGAVADER", W/2, H/2 - 80);
+
+    ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    ctx.fillText("Enter: Start", W/2, H/2 + 70);
+    ctx.fillText("N: Edit Name (when not editing)", W/2, H/2 + 95);
+
+    ctx.font = "20px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    const showName = isEditingName ? nameBuffer + "▍" : playerName;
+    ctx.fillText(`NAME: ${showName}`, W/2, H/2);
+
+    ctx.font = "14px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    ctx.fillText("Backspace: Delete / Esc: Cancel", W/2, H/2 + 30);
+ctx.fillText("Enter: Back to Title", W/2, H/2 + 50);
+
+    ctx.textAlign = "left";
+    return;
+  }
+
     // background
     ctx.clearRect(0,0,W,H);
 
