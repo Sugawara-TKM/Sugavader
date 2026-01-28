@@ -22,28 +22,7 @@
     a.x < b.x + b.w && a.x + a.w > b.x &&
     a.y < b.y + b.h && a.y + a.h > b.y;
 
-  // --- Input
-  const keys = new Set();
-  window.addEventListener("keydown", e => {
-    if (["ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
-    keys.add(e.code);
-  }, { passive:false });
-  window.addEventListener("keyup", e => keys.delete(e.code));
-  let bgmStarted = false;
-
-window.addEventListener("keydown", e => {
-  if (!bgmStarted) {
-    bgm.play().catch(() => {}); // Safari対策
-    bgmStarted = true;
-  }
-});
-
-
-  // --- Image
-  const faceImg = new Image();
-  faceImg.src = "tomo.PNG"; // ファイル名を合わせる
-
-// --- Audio (BGM)
+    // --- Audio (BGM)
   const bgm = new Audio("bgm.m4a");
   bgm.loop = true;
   bgm.volume = 0.4; // 音量（0.0〜1.0）
@@ -51,6 +30,74 @@ window.addEventListener("keydown", e => {
   // --- Audio (SE: attack)
 const attackSE = new Audio("at.m4a");
 attackSE.volume = 0.6;
+
+  // --- Input
+const keys = new Set();
+let bgmStarted = false;
+
+window.addEventListener("keydown", e => {
+  if (["ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+  keys.add(e.code);
+
+  // 最初のキー入力でBGM開始（ブラウザの自動再生制限対策）
+  if (!bgmStarted) {
+    bgm.play().catch(() => {}); // Safari対策
+    bgmStarted = true;
+  }
+}, { passive: false });
+
+window.addEventListener("keyup", e => keys.delete(e.code));
+
+  // --- Image
+  const faceImg = new Image();
+  faceImg.src = "tomo.PNG"; // ファイル名を合わせる
+
+// --- Player name
+let playerName = localStorage.getItem("playerName") || "";
+if (!playerName) {
+  playerName = (prompt("プレイヤー名（20文字以内）") || "NoName").slice(0, 20);
+  localStorage.setItem("playerName", playerName);
+}
+
+// --- Supabase (REST)
+const SUPABASE_URL = "https://axngzzcozjuwmvvuvmor.supabase.co"; // ← あなたの Project URL
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4bmd6emNvemp1d212dnV2bW9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1Nzk2MTAsImV4cCI6MjA4NTE1NTYxMH0.-H9IK6WOidJl8mBBNqM2wqnTB3KZU0rDZZoxxIY6el8";               // ← あなたの anon public key
+const SCORE_TABLE = "scores";
+
+async function submitScore(name, score) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/${SCORE_TABLE}`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({ name, score })
+    });
+  } catch (e) {
+    console.log("submitScore failed", e);
+  }
+}
+
+async function fetchTopScores(limit = 10) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/${SCORE_TABLE}?select=name,score,created_at&order=score.desc,created_at.asc&limit=${limit}`,
+      {
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      }
+    );
+    return await res.json();
+  } catch (e) {
+    console.log("fetchTopScores failed", e);
+    return [];
+  }
+}
 
   // --- Game state
   const W = canvas.width, H = canvas.height;
@@ -71,6 +118,9 @@ attackSE.volume = 0.6;
   const enemyBulletSpeed = -520;  // 上向き（マイナス）
   const invaders = []; // {x,y,w,h,alive}
   let score = 0;
+  let leaderboard = [];
+  let submitted = false;
+  let leaderboardLoading = false;
   let gameOver = false;
   let win = false;
 
@@ -102,10 +152,20 @@ attackSE.volume = 0.6;
   }
 
   function update(dt) {
-    if ((gameOver || win) && !bgm.paused) {
-  bgm.pause();
+    if (gameOver || win) {
+  if (!bgm.paused) bgm.pause();
+
+  if (!submitted && !leaderboardLoading) {
+    submitted = true;
+    leaderboardLoading = true;
+
+    submitScore(playerName, score)
+      .then(() => fetchTopScores(10))
+      .then(rows => { leaderboard = rows; })
+      .finally(() => { leaderboardLoading = false; });
+  }
+  return;
 }
-    if (gameOver || win) return;
 
     // Player move
     const left = keys.has("ArrowLeft") ? -1 : 0;
@@ -142,7 +202,6 @@ if (enemyShootTimer >= enemyShootInterval) {
   }
 }
 
-
     // Bullets update
     for (const b of bullets) b.y += b.vy * dt;
     for (let i=bullets.length-1; i>=0; i--) {
@@ -154,7 +213,6 @@ for (const b of enemyBullets) b.y += b.vy * dt;
 for (let i = enemyBullets.length - 1; i >= 0; i--) {
   if (enemyBullets[i].y + enemyBullets[i].h < 0) enemyBullets.splice(i, 1);
 }
-
 
     // Invaders step movement (classic-ish)
     invTimer += dt;
@@ -187,14 +245,15 @@ for (let i = enemyBullets.length - 1; i >= 0; i--) {
 
       // Lose condition: invaders reach player area
       // alive boundsも minY を取る必要があるので追加
-  let minY = Infinity;
-// for ループ内で minY も更新
-// minY = Math.min(minY, inv.y);
 
-  if (minY < player.y + player.h + 10) {
-    gameOver = true;
-  }
+      let minY = Infinity;
+for (const inv of invaders) if (inv.alive) {
+  minY = Math.min(minY, inv.y);
+}
 
+if (minY < player.y + player.h + 10) {
+  gameOver = true;
+}
     }
 
     // Collisions bullets vs invaders
@@ -222,8 +281,6 @@ for (let i = enemyBullets.length - 1; i >= 0; i--) {
     break;
   }
 }
-
-
   }
 
   function render() {
@@ -236,11 +293,10 @@ for (let i = enemyBullets.length - 1; i >= 0; i--) {
 
     // HUD
     ctx.fillStyle = "#d7e0ea";
-    resetTextLine(28, `SCORE: ${score}`);
+    resetTextLine(28, `PLAYER: ${playerName}   SCORE: ${score}`);
 
     resetTextLine(52, `MOVE: ← →   SHOT: SPACE`);
 resetTextLine(76, `Tip: press any key to start BGM`);
-
 
     // Player (face image)
   ctx.drawImage(
@@ -285,6 +341,24 @@ for (const b of enemyBullets) ctx.fillRect(b.x, b.y, b.w, b.h);
       ctx.textAlign = "left";
     }
   }
+
+// Leaderboard
+ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+ctx.fillText("TOP 10", W/2, H/2 + 70);
+
+ctx.font = "14px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+if (leaderboardLoading) {
+  ctx.fillText("Loading...", W/2, H/2 + 95);
+} else {
+  for (let i = 0; i < Math.min(10, leaderboard.length); i++) {
+    const row = leaderboard[i];
+    ctx.fillText(
+      `${i + 1}. ${row.name}  ${row.score}`,
+      W/2,
+      H/2 + 95 + i * 18
+    );
+  }
+}
 
   // Loop
   let last = performance.now();
