@@ -338,11 +338,7 @@ for (const b of enemyBullets) ctx.fillRect(b.x, b.y, b.w, b.h);
       ctx.fillText(win ? "YOU WIN" : "GAME OVER", W/2, H/2 - 10);
       ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
       ctx.fillText("Reload to play again (Cmd+R)", W/2, H/2 + 30);
-      ctx.textAlign = "left";
-    }
-  }
-
-// Leaderboard
+      // Leaderboard
 ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 ctx.fillText("TOP 10", W/2, H/2 + 70);
 
@@ -359,6 +355,9 @@ if (leaderboardLoading) {
     );
   }
 }
+      ctx.textAlign = "left";
+    }
+  }
 
   // Loop
   let last = performance.now();
