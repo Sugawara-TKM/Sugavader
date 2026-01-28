@@ -97,16 +97,6 @@ window.addEventListener("keydown", e => {
     }
   }
 
-  // 結果画面：Enterでタイトルへ
-  if (gameState === "result") {
-    if (e.code === "Enter") {
-      gameState = "title";
-      isEditingName = true;
-      nameBuffer = playerName === "NoName" ? "" : playerName;
-      return;
-    }
-  }
-
   // --- ここから先はプレイ中の操作
   if (["ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
   keys.add(e.code);
@@ -275,27 +265,25 @@ function resetGame() {
   }
 
   function update(dt) {
-  if (gameState === "title") return;
+  // ★最優先：終了時はランキング処理して止める
+  if (gameOver || win) {
+    gameState = "result"; // 結果表示に固定（戻らない）
 
-  if (gameState === "result") return;
+    if (!bgm.paused) bgm.pause();
 
-  // ここから下は「playing」の処理だけ
-  // （あなたの既存の update 中身）
+    if (!submitted && !leaderboardLoading) {
+      submitted = true;
+      leaderboardLoading = true;
 
-    if (gameOver || win) {
-  if (!bgm.paused) bgm.pause();
-
-  if (!submitted && !leaderboardLoading) {
-    submitted = true;
-    leaderboardLoading = true;
-
-    submitScore(playerName, score)
-      .then(() => fetchTopScores(10))
-      .then(rows => { leaderboard = rows; })
-      .finally(() => { leaderboardLoading = false; });
-  }
-  return;
+      submitScore(playerName, score)
+        .then(() => fetchTopScores(10))
+        .then(rows => { leaderboard = rows; })
+        .finally(() => { leaderboardLoading = false; });
+    }
+    return;
 }
+
+if (gameState === "title") return;
 
     // Player move
     const left = keys.has("ArrowLeft") ? -1 : 0;
@@ -436,7 +424,6 @@ for (let i = enemyBullets.length - 1; i >= 0; i--) {
 
     ctx.font = "14px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
     ctx.fillText("Backspace: Delete / Esc: Cancel", W/2, H/2 + 30);
-ctx.fillText("Enter: Back to Title", W/2, H/2 + 50);
 
     ctx.textAlign = "left";
     return;
