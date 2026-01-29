@@ -22,268 +22,269 @@
     a.x < b.x + b.w && a.x + a.w > b.x &&
     a.y < b.y + b.h && a.y + a.h > b.y;
 
-    // --- Audio (BGM)
+  // --- Audio (BGM)
   const bgm = new Audio("bgm.m4a");
   bgm.loop = true;
-  bgm.volume = 0.4; // 音量（0.0〜1.0）
+  bgm.volume = 0.4;
 
   // --- Audio (SE: attack)
-const attackSE = new Audio("at.m4a");
-attackSE.volume = 0.6;
+  const attackSE = new Audio("at.m4a");
+  attackSE.volume = 0.6;
 
   // --- Input
-const keys = new Set();
-let bgmStarted = false;
-
-window.addEventListener("keydown", e => {
-  // タイトル画面：名前入力
-  if (gameState === "title") {
-    // BGMは「ゲーム開始後」に鳴らしたいなら、ここでは鳴らさない
-    // ただしブラウザ対策で「最初のキー入力で許可だけ取る」なら playしてOK
-
-    if (isEditingName) {
-      if (e.code === "Enter") {
-        // 名前確定（空なら NoName）
-        playerName = (nameBuffer.trim() || "NoName").slice(0, NAME_MAX);
-        localStorage.setItem("playerName", playerName);
-        isEditingName = false;
-
-        // ゲーム開始
-        resetGame();
-        gameState = "playing";
-
-        // BGM開始（ユーザー操作直後なのでOK）
-        if (!bgmStarted) {
-          bgm.play().catch(() => {});
-          bgmStarted = true;
-        }
-        return;
-      }
-      if (e.code === "Backspace") {
-        e.preventDefault();
-        nameBuffer = nameBuffer.slice(0, -1);
-        return;
-      }
-      if (e.code === "Escape") {
-        // 入力キャンセル（保存済みの名前に戻す）
-        nameBuffer = playerName;
-        isEditingName = false;
-        return;
-      }
-
-      // 文字入力（日本語含め基本OK）
-      if (e.key && e.key.length === 1 && nameBuffer.length < NAME_MAX) {
-        nameBuffer += e.key;
-      }
-      return;
-    } else {
-      // 編集中じゃないタイトル画面
-      if (e.code === "Enter") {
-        resetGame();
-        gameState = "playing";
-        if (!bgmStarted) {
-          bgm.play().catch(() => {});
-          bgmStarted = true;
-        }
-        return;
-      }
-      if (e.code === "KeyN") {
-        // Nで名前再編集
-        isEditingName = true;
-        nameBuffer = playerName === "NoName" ? "" : playerName;
-        return;
-      }
-      return;
-    }
-  }
-
-  // --- ここから先はプレイ中の操作
-  if (["ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
-  keys.add(e.code);
-
-  if (!bgmStarted) {
-    bgm.play().catch(() => {});
-    bgmStarted = true;
-  }
-}, { passive: false });
-
-window.addEventListener("keyup", e => keys.delete(e.code));
+  const keys = new Set();
+  let bgmStarted = false;
 
   // --- Image
   const faceImg = new Image();
-  faceImg.src = "tomo.PNG"; // ファイル名を合わせる
+  faceImg.src = "tomo.PNG";
 
-// --- Game state machine
-let gameState = "title"; // "title" | "playing" | "result"
+  // --- Game state machine
+  let gameState = "title"; // "title" | "playing" | "result"
 
-// --- Player name
-let playerName = localStorage.getItem("playerName") || "NoName";
-let isEditingName = true;
-let nameBuffer = playerName === "NoName" ? "" : playerName; // 最初に編集しやすく
-const NAME_MAX = 20;
+  // --- Player name
+  let playerName = localStorage.getItem("playerName") || "NoName";
+  let isEditingName = true;
+  let nameBuffer = playerName === "NoName" ? "" : playerName;
+  const NAME_MAX = 20;
 
+  window.addEventListener("keydown", e => {
+    // タイトル画面：名前入力
+    if (gameState === "title") {
+      if (isEditingName) {
+        if (e.code === "Enter") {
+          playerName = (nameBuffer.trim() || "NoName").slice(0, NAME_MAX);
+          localStorage.setItem("playerName", playerName);
+          isEditingName = false;
 
-// --- Supabase (REST)
-const SUPABASE_URL = "https://axngzzcozjuwmvvuvmor.supabase.co"; // ← あなたの Project URL
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4bmd6emNvemp1d212dnV2bW9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1Nzk2MTAsImV4cCI6MjA4NTE1NTYxMH0.-H9IK6WOidJl8mBBNqM2wqnTB3KZU0rDZZoxxIY6el8";               // ← あなたの anon public key
-const SCORE_TABLE = "scores";
+          resetGame();
+          gameState = "playing";
 
-async function submitScore(name, score) {
-  try {
-    await fetch(`${SUPABASE_URL}/rest/v1/${SCORE_TABLE}`, {
-      method: "POST",
-      headers: {
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
-      },
-      body: JSON.stringify({ name, score })
-    });
-  } catch (e) {
-    console.log("submitScore failed", e);
-  }
-}
+          if (!bgmStarted) {
+            bgm.play().catch(() => {});
+            bgmStarted = true;
+          }
+          return;
+        }
+        if (e.code === "Backspace") {
+          e.preventDefault();
+          nameBuffer = nameBuffer.slice(0, -1);
+          return;
+        }
+        if (e.code === "Escape") {
+          nameBuffer = playerName;
+          isEditingName = false;
+          return;
+        }
+        if (e.key && e.key.length === 1 && nameBuffer.length < NAME_MAX) {
+          nameBuffer += e.key;
+        }
+        return;
+      } else {
+        if (e.code === "Enter") {
+          resetGame();
+          gameState = "playing";
+          if (!bgmStarted) {
+            bgm.play().catch(() => {});
+            bgmStarted = true;
+          }
+          return;
+        }
+        if (e.code === "KeyN") {
+          isEditingName = true;
+          nameBuffer = playerName === "NoName" ? "" : playerName;
+          return;
+        }
+        return;
+      }
+    }
 
-async function fetchTopScores(limit = 10) {
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/${SCORE_TABLE}?select=name,score,created_at&order=score.desc,created_at.asc&limit=${limit}`,
-      {
+    // --- ここから先はプレイ中の操作
+    if (["ArrowLeft","ArrowRight","Space"].includes(e.code)) e.preventDefault();
+    keys.add(e.code);
+
+    if (!bgmStarted) {
+      bgm.play().catch(() => {});
+      bgmStarted = true;
+    }
+  }, { passive: false });
+
+  window.addEventListener("keyup", e => keys.delete(e.code));
+
+  // --- Supabase (REST)
+  const SUPABASE_URL = "https://axngzzcozjuwmvvuvmor.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4bmd6emNvemp1d212dnV2bW9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1Nzk2MTAsImV4cCI6MjA4NTE1NTYxMH0.-H9IK6WOidJl8mBBNqM2wqnTB3KZU0rDZZoxxIY6el8";
+  const SCORE_TABLE = "scores";
+
+  async function submitScore(name, score) {
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/${SCORE_TABLE}`, {
+        method: "POST",
         headers: {
           "apikey": SUPABASE_ANON_KEY,
-          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
-        }
-      }
-    );
-    return await res.json();
-  } catch (e) {
-    console.log("fetchTopScores failed", e);
-    return [];
-  }
-}
-
-function resetGame() {
-  // スコアと結果
-  score = 0;
-  gameOver = false;
-  win = false;
-
-  // ランキング周り（結果画面で使うならここで初期化）
-  leaderboard = [];
-  submitted = false;
-  leaderboardLoading = false;
-
-  // 弾を空に
-  bullets.length = 0;
-  enemyBullets.length = 0;
-
-  // プレイヤー位置（上にいる前提）
-  player.x = W / 2 - player.w / 2;
-  player.y = 30;
-
-  // 敵の作り直し
-  invaders.length = 0;
-  const cols = 11, rows = 5;
-  const iw = 34, ih = 20, gapX = 16, gapY = 14;
-  const startX = 120, startY = H - 260;
-  for (let r=0; r<rows; r++) {
-    for (let c=0; c<cols; c++) {
-      invaders.push({
-        x: startX + c*(iw+gapX),
-        y: startY + r*(ih+gapY),
-        w: iw, h: ih,
-        alive: true
+          "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify({ name, score })
       });
+    } catch (e) {
+      console.log("submitScore failed", e);
     }
   }
 
-  // 敵移動パラメータ（あなたの既存変数名に合わせて調整）
-  invDir = 1;
-  invSpeed = 55;
-  invDrop = -22;         // 下に敵がいるなら「上へ迫る」= マイナス
-  invTimer = 0;
-  invStepInterval = 0.22;
+  async function fetchTopScores(limit = 10) {
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/${SCORE_TABLE}?select=name,score,created_at&order=score.desc,created_at.asc&limit=${limit}`,
+        {
+          headers: {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        }
+      );
+      return await res.json();
+    } catch (e) {
+      console.log("fetchTopScores failed", e);
+      return [];
+    }
+  }
 
-  // 敵弾タイマー
-  enemyShootTimer = 0;
-
-  // BGM（プレイ開始で鳴らす）
-  // bgmStarted はキー入力側で管理するので、ここでは触らなくてOK
-}
-
-  // --- Game state
+  // --- Game constants/state
   const W = canvas.width, H = canvas.height;
 
   const player = {
-  x: W/2 - 48,
-  y: 70,
-  w: 96,
-  h: 96,
-  speed: 420,
-  cooldown: 0
-};
+    x: W/2 - 48,
+    y: 70,
+    w: 96,
+    h: 96,
+    speed: 420,
+    cooldown: 0
+  };
 
-  const bullets = []; // {x,y,w,h,vy}
-  const enemyBullets = []; // {x,y,w,h,vy}
-  let enemyShootTimer = 0;
-  const enemyShootInterval = 0.8; // 秒（小さいほど頻繁）
-  const enemyBulletSpeed = -520;  // 上向き（マイナス）
-  const invaders = []; // {x,y,w,h,alive}
+  const bullets = [];
+  const enemyBullets = [];
+  const invaders = [];
+
   let score = 0;
   let leaderboard = [];
   let submitted = false;
   let leaderboardLoading = false;
   let gameOver = false;
-  let win = false;
 
-  // Create invader grid
+  // ---- WAVE SYSTEM（追加）
+  let wave = 1;
+
+  // 敵グリッド設定
   const cols = 11, rows = 5;
   const iw = 34, ih = 20, gapX = 16, gapY = 14;
-  const startX = 120, startY = H - 200;
-  for (let r=0; r<rows; r++) {
-    for (let c=0; c<cols; c++) {
-      invaders.push({
-        x: startX + c*(iw+gapX),
-        y: startY + r*(ih+gapY),
-        w: iw, h: ih,
-        alive: true
-      });
-    }
-  }
 
-  // Invader movement
-  let invDir = 1;           // 1 right, -1 left
-  let invSpeed = 55;        // px/sec
-  let invDrop = -22;         // drop when edge hit
-  let invTimer = 0;         // to make stepping feel like classic
-  let invStepInterval = 0.22; // sec
+  // 敵の初期配置（WAVEで変えるならここを調整）
+  const startX = 120;
+
+  // 敵移動パラメータ（WAVEで強化される）
+  let invDir = 1;
+  let invSpeed = 55;         // ↑ waveで増やす
+  let invDrop = -22;
+  let invTimer = 0;
+  let invStepInterval = 0.22; // ↓ waveで短くする
+
+  // 敵弾（WAVEで強化される）
+  let enemyShootTimer = 0;
+  let enemyShootInterval = 0.8; // ↓ waveで短くする
+  let enemyBulletSpeedAbs = 520; // ↑ waveで増やす（実際に使うのは -enemyBulletSpeedAbs）
 
   function resetTextLine(y, text) {
     ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
     ctx.fillText(text, 18, y);
   }
 
-  function update(dt) {
-  // ★最優先：終了時はランキング処理して止める
-  if (gameOver || win) {
-    gameState = "result"; // 結果表示に固定（戻らない）
+  // 敵を生成する関数（WAVEごとに呼ぶ）
+  function spawnInvadersForWave() {
+    invaders.length = 0;
 
-    if (!bgm.paused) bgm.pause();
+    // WAVEが上がるほど少しずつ上から始まる（任意）
+    const startY = H - 200;
 
-    if (!submitted && !leaderboardLoading) {
-      submitted = true;
-      leaderboardLoading = true;
-
-      submitScore(playerName, score)
-        .then(() => fetchTopScores(10))
-        .then(rows => { leaderboard = rows; })
-        .finally(() => { leaderboardLoading = false; });
+    for (let r=0; r<rows; r++) {
+      for (let c=0; c<cols; c++) {
+        invaders.push({
+          x: startX + c*(iw+gapX),
+          y: startY + r*(ih+gapY),
+          w: iw, h: ih,
+          alive: true
+        });
+      }
     }
-    return;
-}
+  }
 
-if (gameState === "title") return;
+  // WAVE開始時の難易度調整（ここが肝）
+  function applyDifficultyForWave() {
+    // 伸び方：やりすぎると理不尽になるので上限・下限をつける
+    const speedMul = Math.min(2.8, 1 + (wave - 1) * 0.18);        // 最大 2.8倍
+    const stepMul  = Math.max(0.35, 1 - (wave - 1) * 0.06);       // 最低 0.35倍
+    const shootMul = Math.max(0.28, 1 - (wave - 1) * 0.08);       // 最低 0.28倍
+    const bulletMul= Math.min(2.5, 1 + (wave - 1) * 0.10);        // 最大 2.5倍
+
+    invSpeed = 55 * speedMul;
+    invStepInterval = Math.max(0.08, 0.22 * stepMul);
+    enemyShootInterval = Math.max(0.25, 0.8 * shootMul);
+    enemyBulletSpeedAbs = Math.min(1200, 520 * bulletMul);
+
+    // 初期化系
+    invDir = 1;
+    invTimer = 0;
+    enemyShootTimer = 0;
+  }
+
+  function startWave(n) {
+    wave = n;
+    bullets.length = 0;
+    enemyBullets.length = 0;
+
+    // プレイヤー位置
+    player.x = W / 2 - player.w / 2;
+    player.y = 30;
+
+    spawnInvadersForWave();
+    applyDifficultyForWave();
+  }
+
+  function nextWave() {
+    startWave(wave + 1);
+  }
+
+  function resetGame() {
+    score = 0;
+    gameOver = false;
+
+    leaderboard = [];
+    submitted = false;
+    leaderboardLoading = false;
+
+    startWave(1);
+  }
+
+  function update(dt) {
+    // 終了時：ランキング処理
+    if (gameOver) {
+      gameState = "result";
+      if (!bgm.paused) bgm.pause();
+
+      if (!submitted && !leaderboardLoading) {
+        submitted = true;
+        leaderboardLoading = true;
+
+        submitScore(playerName, score)
+          .then(() => fetchTopScores(10))
+          .then(rows => { leaderboard = rows; })
+          .finally(() => { leaderboardLoading = false; });
+      }
+      return;
+    }
+
+    if (gameState === "title") return;
 
     // Player move
     const left = keys.has("ArrowLeft") ? -1 : 0;
@@ -295,30 +296,28 @@ if (gameState === "title") return;
     player.cooldown = Math.max(0, player.cooldown - dt);
     if (keys.has("Space") && player.cooldown === 0) {
       bullets.push({ x: player.x + player.w/2 - 3, y: player.y + player.h + 2, w: 6, h: 12, vy: 700 });
-      attackSE.currentTime = 0; // 連射でも毎回鳴らすため
-      attackSE.play();
+      attackSE.currentTime = 0;
+      attackSE.play().catch(() => {});
       player.cooldown = 0.18;
     }
 
     // Enemy shooting
-enemyShootTimer += dt;
-if (enemyShootTimer >= enemyShootInterval) {
-  enemyShootTimer = 0;
+    enemyShootTimer += dt;
+    if (enemyShootTimer >= enemyShootInterval) {
+      enemyShootTimer = 0;
 
-  // 生きてる敵からランダムに1体選ぶ
-  const aliveInvaders = invaders.filter(i => i.alive);
-  if (aliveInvaders.length > 0) {
-    const shooter = aliveInvaders[Math.floor(Math.random() * aliveInvaders.length)];
-
-    enemyBullets.push({
-      x: shooter.x + shooter.w / 2 - 3,
-      y: shooter.y - 12, // 敵の上側から出す（上へ飛ぶので）
-      w: 6,
-      h: 12,
-      vy: enemyBulletSpeed
-    });
-  }
-}
+      const aliveInvaders = invaders.filter(i => i.alive);
+      if (aliveInvaders.length > 0) {
+        const shooter = aliveInvaders[Math.floor(Math.random() * aliveInvaders.length)];
+        enemyBullets.push({
+          x: shooter.x + shooter.w / 2 - 3,
+          y: shooter.y - 12,
+          w: 6,
+          h: 12,
+          vy: -enemyBulletSpeedAbs // 上向き
+        });
+      }
+    }
 
     // Bullets update
     for (const b of bullets) b.y += b.vy * dt;
@@ -326,27 +325,33 @@ if (enemyShootTimer >= enemyShootInterval) {
       if (bullets[i].y + bullets[i].h < 0) bullets.splice(i,1);
     }
 
-// Enemy bullets update
-for (const b of enemyBullets) b.y += b.vy * dt;
-for (let i = enemyBullets.length - 1; i >= 0; i--) {
-  if (enemyBullets[i].y + enemyBullets[i].h < 0) enemyBullets.splice(i, 1);
-}
+    // Enemy bullets update
+    for (const b of enemyBullets) b.y += b.vy * dt;
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+      if (enemyBullets[i].y + enemyBullets[i].h < 0) enemyBullets.splice(i, 1);
+    }
 
-    // Invaders step movement (classic-ish)
+    // Invaders step movement
     invTimer += dt;
     if (invTimer >= invStepInterval) {
       invTimer = 0;
 
       // compute alive bounds
-      let minX = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let minX = Infinity, maxX = -Infinity;
       let aliveCount = 0;
       for (const inv of invaders) if (inv.alive) {
         aliveCount++;
         minX = Math.min(minX, inv.x);
         maxX = Math.max(maxX, inv.x + inv.w);
-        maxY = Math.max(maxY, inv.y + inv.h);
       }
-      if (aliveCount === 0) { win = true; return; }
+
+      // ★全滅：勝利で終わらず次WAVEへ
+      if (aliveCount === 0) {
+        // 任意：クリアボーナス（WAVEが進むほど増える）
+        score += 50 + wave * 10;
+        nextWave();
+        return;
+      }
 
       const nextMinX = minX + invDir * invSpeed * invStepInterval;
       const nextMaxX = maxX + invDir * invSpeed * invStepInterval;
@@ -354,24 +359,18 @@ for (let i = enemyBullets.length - 1; i >= 0; i--) {
       if (nextMinX < 20 || nextMaxX > W - 20) {
         invDir *= -1;
         for (const inv of invaders) if (inv.alive) inv.y += invDrop;
-        // speed up as fewer remain
-        invSpeed = 55 + (rows*cols - aliveCount) * 1.2;
-        invStepInterval = Math.max(0.08, 0.22 - (rows*cols - aliveCount) * 0.002);
       } else {
         for (const inv of invaders) if (inv.alive) inv.x += invDir * invSpeed * invStepInterval;
       }
 
       // Lose condition: invaders reach player area
-      // alive boundsも minY を取る必要があるので追加
-
       let minY = Infinity;
-for (const inv of invaders) if (inv.alive) {
-  minY = Math.min(minY, inv.y);
-}
-
-if (minY < player.y + player.h + 10) {
-  gameOver = true;
-}
+      for (const inv of invaders) if (inv.alive) {
+        minY = Math.min(minY, inv.y);
+      }
+      if (minY < player.y + player.h + 10) {
+        gameOver = true;
+      }
     }
 
     // Collisions bullets vs invaders
@@ -390,116 +389,101 @@ if (minY < player.y + player.h + 10) {
       if (hit) bullets.splice(bi, 1);
     }
 
-// Collisions enemy bullets vs player
-for (let i = enemyBullets.length - 1; i >= 0; i--) {
-  const b = enemyBullets[i];
-  if (aabb(b, player)) {
-    enemyBullets.splice(i, 1);
-    gameOver = true; // まずは1発アウトでOK
-    gameState = "result";
-    break;
-  }
-}
+    // Collisions enemy bullets vs player
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+      const b = enemyBullets[i];
+      if (aabb(b, player)) {
+        enemyBullets.splice(i, 1);
+        gameOver = true;
+        break;
+      }
+    }
   }
 
   function render() {
-  ctx.clearRect(0,0,W,H);
-  ctx.fillStyle = "#0b0f14";
-  ctx.fillRect(0,0,W,H);
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = "#0b0f14";
+    ctx.fillRect(0,0,W,H);
 
-  // --- タイトル画面
-  if (gameState === "title") {
-    ctx.fillStyle = "#ffffff";
-    ctx.textAlign = "center";
-    ctx.font = "42px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-    ctx.fillText("SUGAVADER", W/2, H/2 - 80);
+    // --- タイトル画面
+    if (gameState === "title") {
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.font = "42px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+      ctx.fillText("SUGAVADER", W/2, H/2 - 80);
 
-    ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-    ctx.fillText("Enter: Start", W/2, H/2 + 70);
-    ctx.fillText("N: Edit Name (when not editing)", W/2, H/2 + 95);
+      ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+      ctx.fillText("Enter: Start", W/2, H/2 + 70);
+      ctx.fillText("N: Edit Name (when not editing)", W/2, H/2 + 95);
 
-    ctx.font = "20px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-    const showName = isEditingName ? nameBuffer + "▍" : playerName;
-    ctx.fillText(`NAME: ${showName}`, W/2, H/2);
+      ctx.font = "20px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+      const showName = isEditingName ? nameBuffer + "▍" : playerName;
+      ctx.fillText(`NAME: ${showName}`, W/2, H/2);
 
-    ctx.font = "14px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-    ctx.fillText("Backspace: Delete / Esc: Cancel", W/2, H/2 + 30);
+      ctx.font = "14px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+      ctx.fillText("Backspace: Delete / Esc: Cancel", W/2, H/2 + 30);
 
-    ctx.textAlign = "left";
-    return;
-  }
+      ctx.textAlign = "left";
+      return;
+    }
 
     // background
-    ctx.clearRect(0,0,W,H);
-
-    // Stars (cheap)
     ctx.fillStyle = "#0b0f14";
     ctx.fillRect(0,0,W,H);
 
     // HUD
     ctx.fillStyle = "#d7e0ea";
-    resetTextLine(28, `PLAYER: ${playerName}   SCORE: ${score}`);
-
+    resetTextLine(28, `PLAYER: ${playerName}   SCORE: ${score}   WAVE: ${wave}`);
     resetTextLine(52, `MOVE: ← →   SHOT: SPACE`);
-resetTextLine(76, `Tip: press any key to start BGM`);
+    resetTextLine(76, `Tip: press any key to start BGM`);
 
-    // Player (face image)
-  ctx.drawImage(
-    faceImg,
-    player.x,
-    player.y,
-    player.w,
-    player.h
-  );
+    // Player
+    ctx.drawImage(faceImg, player.x, player.y, player.w, player.h);
 
     // Bullets
     ctx.fillStyle = "#f7f2a1";
     for (const b of bullets) ctx.fillRect(b.x, b.y, b.w, b.h);
 
-// Enemy Bullets
-ctx.fillStyle = "#ff8b8b";
-for (const b of enemyBullets) ctx.fillRect(b.x, b.y, b.w, b.h);
-
+    // Enemy Bullets
+    ctx.fillStyle = "#ff8b8b";
+    for (const b of enemyBullets) ctx.fillRect(b.x, b.y, b.w, b.h);
 
     // Invaders
     for (const inv of invaders) {
       if (!inv.alive) continue;
-      // body
       ctx.fillStyle = "#7aa2ff";
       ctx.fillRect(inv.x, inv.y, inv.w, inv.h);
-      // eyes (tiny)
       ctx.fillStyle = "#0b0f14";
       ctx.fillRect(inv.x + 7, inv.y + 6, 5, 5);
       ctx.fillRect(inv.x + inv.w - 12, inv.y + 6, 5, 5);
     }
 
-    // Messages
-    if (win || gameOver) {
+    // Result overlay
+    if (gameOver) {
       ctx.fillStyle = "rgba(0,0,0,0.65)";
       ctx.fillRect(0,0,W,H);
       ctx.fillStyle = "#ffffff";
       ctx.font = "42px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
       ctx.textAlign = "center";
-      ctx.fillText(win ? "YOU WIN" : "GAME OVER", W/2, H/2 - 10);
-      ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-      ctx.fillText("Reload to play again (Cmd+R)", W/2, H/2 + 30);
-      // Leaderboard
-ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-ctx.fillText("TOP 10", W/2, H/2 + 70);
+      ctx.fillText("GAME OVER", W/2, H/2 - 25);
 
-ctx.font = "14px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-if (leaderboardLoading) {
-  ctx.fillText("Loading...", W/2, H/2 + 95);
-} else {
-  for (let i = 0; i < Math.min(10, leaderboard.length); i++) {
-    const row = leaderboard[i];
-    ctx.fillText(
-      `${i + 1}. ${row.name}  ${row.score}`,
-      W/2,
-      H/2 + 95 + i * 18
-    );
-  }
-}
+      ctx.font = "16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+      ctx.fillText(`You reached WAVE ${wave}`, W/2, H/2 + 5);
+      ctx.fillText("Reload to play again (Cmd+R)", W/2, H/2 + 30);
+
+      // Leaderboard
+      ctx.font = "18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+      ctx.fillText("TOP 10", W/2, H/2 + 70);
+
+      ctx.font = "14px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+      if (leaderboardLoading) {
+        ctx.fillText("Loading...", W/2, H/2 + 95);
+      } else {
+        for (let i = 0; i < Math.min(10, leaderboard.length); i++) {
+          const row = leaderboard[i];
+          ctx.fillText(`${i + 1}. ${row.name}  ${row.score}`, W/2, H/2 + 95 + i * 18);
+        }
+      }
       ctx.textAlign = "left";
     }
   }
