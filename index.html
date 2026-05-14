@@ -467,8 +467,10 @@
       ctx.textAlign = "center";
       ctx.fillText("GAME OVER", W/2, H/2 - 25);
 
-      ctx.font = "16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+      ctx.font = "32px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
       ctx.fillText(`FINAL SCORE: ${score}`, W/2, H/2 + 5);
+
+      ctx.font = "16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
       ctx.fillText(`You reached WAVE ${wave}`, W/2, H/2 + 25);
       ctx.fillText("Reload to play again (Cmd+R)", W/2, H/2 + 45);
 
